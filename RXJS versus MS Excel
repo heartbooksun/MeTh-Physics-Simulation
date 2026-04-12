@@ -1,0 +1,44 @@
+Here's the scenario, on Excel spreadsheet workbook "Alpha" cell A1 equals 90. alpha cell B1 equals 10. Alpha cell C1 has a total sign. alpha cell D1 is sum of alpha A1 and alpha B1 total. On Excel spreadsheet workbook "Beta" Beta cell A1 is the formula vlookup for workbook Alpha cell D1 with if/then statement populating "0" of an error is produced. Workbook Beta cell B1 has concat formula Alpha cell d1 left 2 & Beta cell a1 right 2, if error equals 0. Beta cell c1 has if/then statement if Beta cell C1 equals Alpha cell D1 then true, if not false. How do these operations look like if translated to rxjs?
+import { BehaviorSubject, combineLatest, of } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
+
+// Alpha A1 and B1 are our "Source" streams
+const alphaA1$ = new BehaviorSubject<number>(90);
+const alphaB1$ = new BehaviorSubject<number>(10);
+
+// Alpha D1 is a "Derived" stream (A1 + B1)
+const alphaD1$ = combineLatest([alphaA1$, alphaB1$]).pipe(
+  map(([a, b]) => a + b)
+);
+// Mock data table for the VLOOKUP
+const lookupTable = [{ id: 100, value: "100-Series" }];
+
+const betaA1$ = alphaD1$.pipe(
+  map(d1Value => {
+    const found = lookupTable.find(row => row.id === d1Value);
+    if (!found) throw new Error("Not Found");
+    return found.value;
+  }),
+  // This is your IF/THEN Error "0" logic
+  catchError(() => of("0")) 
+);
+const betaB1$ = combineLatest([alphaD1$, betaA1$]).pipe(
+  map(([d1, a1]) => {
+    try {
+      const leftPart = d1.toString().substring(0, 2); // LEFT(AlphaD1, 2)
+      const rightPart = a1.toString().slice(-2);      // RIGHT(BetaA1, 2)
+      return leftPart + rightPart;
+    } catch {
+      return "0"; // IF ERROR logic
+    }
+  })
+);
+const betaC1$ = combineLatest([betaB1$, alphaD1$]).pipe(
+  map(([b1, d1]) => (b1 === d1.toString() ? true : false))
+);
+Final Result
+If you were to run this code and subscribe to betaC1$:
+Alpha D1 = 100.
+Beta A1 = "100-Series" (successfully found 100).
+Beta B1 = "10" (left of 100) + "es" (right of Series) = "10es".
+Beta C1 = false (because "10es" does not equal 100).
